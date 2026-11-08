@@ -1,0 +1,156 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" width="1200" height="380" role="img" aria-label="Crunch Lab: a spinning 3D chip bag over pulsing flavor rings">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="55%" r="75%">
+      <stop offset="0" stop-color="#e3243a"/>
+      <stop offset="0.6" stop-color="#b3101f"/>
+      <stop offset="1" stop-color="#6e0712"/>
+    </radialGradient>
+    <linearGradient id="bagFront" x1="0" x2="1">
+      <stop offset="0" stop-color="#b80f1f"/>
+      <stop offset="0.45" stop-color="#ef2b3a"/>
+      <stop offset="0.6" stop-color="#ff5a63"/>
+      <stop offset="1" stop-color="#a50d1b"/>
+    </linearGradient>
+    <linearGradient id="bagBack" x1="0" x2="1">
+      <stop offset="0" stop-color="#7d0a15"/>
+      <stop offset="1" stop-color="#c41a29"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#ffe066"/>
+      <stop offset="1" stop-color="#f5b400"/>
+    </radialGradient>
+    <radialGradient id="chip" cx="40%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#fff0a8"/>
+      <stop offset="0.55" stop-color="#f3c552"/>
+      <stop offset="1" stop-color="#c98f1d"/>
+    </radialGradient>
+    <radialGradient id="shadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#3a0008" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#3a0008" stop-opacity="0"/>
+    </radialGradient>
+    <g id="c">
+      <ellipse rx="22" ry="17" fill="url(#chip)"/>
+      <path d="M-11 4 Q0 10 12 2" stroke="#fff6cc" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.8"/>
+      <circle cx="-6" cy="-5" r="1.6" fill="#a8741a"/>
+      <circle cx="7" cy="-2" r="1.4" fill="#a8741a"/>
+    </g>
+  </defs>
+  <style>
+    .ring { fill: none; stroke: #ffffff; stroke-opacity: .07; transform-box: fill-box; transform-origin: center; animation: pulse 4.8s ease-in-out infinite; }
+    .r2 { animation-delay: -.8s } .r3 { animation-delay: -1.6s } .r4 { animation-delay: -2.4s } .r5 { animation-delay: -3.2s }
+    @keyframes pulse { 0%,100% { transform: scale(1); stroke-opacity: .05 } 50% { transform: scale(1.06); stroke-opacity: .13 } }
+
+    .spin { transform-box: fill-box; transform-origin: center; animation: spin 6s cubic-bezier(.45,0,.55,1) infinite; }
+    @keyframes spin {
+      0%   { transform: scaleX(1) }
+      22%  { transform: scaleX(.92) }
+      25%  { transform: scaleX(.04) }
+      28%  { transform: scaleX(-.92) }
+      50%  { transform: scaleX(-1) }
+      72%  { transform: scaleX(-.92) }
+      75%  { transform: scaleX(-.04) }
+      78%  { transform: scaleX(.92) }
+      100% { transform: scaleX(1) }
+    }
+    .front { animation: faceF 6s steps(1,end) infinite } .back { animation: faceB 6s steps(1,end) infinite }
+    @keyframes faceF { 0% { opacity: 1 } 25% { opacity: 0 } 75% { opacity: 1 } }
+    @keyframes faceB { 0% { opacity: 0 } 25% { opacity: 1 } 75% { opacity: 0 } }
+    .shine { animation: shine 6s ease-in-out infinite; }
+    @keyframes shine { 0%,100% { transform: translateX(-70px); opacity: .0 } 10% { opacity: .35 } 20% { transform: translateX(70px); opacity: 0 } }
+    .float { animation: bob 3.6s ease-in-out infinite; }
+    @keyframes bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
+    .shadowPulse { transform-box: fill-box; transform-origin: center; animation: sh 3.6s ease-in-out infinite; }
+    @keyframes sh { 0%,100% { transform: scale(1) } 50% { transform: scale(.86) } }
+
+    .chip { transform-box: fill-box; transform-origin: center; }
+    .ch1 { animation: drift 7s ease-in-out infinite }
+    .ch2 { animation: drift 8.5s ease-in-out -2s infinite }
+    .ch3 { animation: drift 6.2s ease-in-out -4s infinite }
+    .ch4 { animation: drift 9s ease-in-out -1s infinite }
+    .ch5 { animation: drift 7.6s ease-in-out -3s infinite }
+    .ch6 { animation: drift 8s ease-in-out -5s infinite }
+    @keyframes drift {
+      0%   { transform: translate(0,0) rotate(0deg) scaleY(1) }
+      25%  { transform: translate(10px,-18px) rotate(70deg) scaleY(.55) }
+      50%  { transform: translate(-6px,-30px) rotate(160deg) scaleY(1) }
+      75%  { transform: translate(-14px,-12px) rotate(250deg) scaleY(.6) }
+      100% { transform: translate(0,0) rotate(360deg) scaleY(1) }
+    }
+    .title { font: 900 64px 'Arial Black', 'Helvetica Neue', Arial, sans-serif; letter-spacing: -1px; fill: #fff; }
+    .kicker { font: 700 15px 'Courier New', monospace; letter-spacing: 5px; fill: #ffd6da; }
+    .sub { font: 500 20px 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; fill: #ffe3e6; }
+    .pill { animation: blink 2.4s ease-in-out infinite } @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
+    @media (prefers-reduced-motion: reduce) { * { animation: none !important } }
+  </style>
+
+  <rect width="1200" height="380" rx="28" fill="url(#bg)"/>
+
+  <!-- flavor rings -->
+  <g transform="translate(905 200)">
+    <circle class="ring r1" r="70" stroke-width="26"/>
+    <circle class="ring r2" r="120" stroke-width="26"/>
+    <circle class="ring r3" r="170" stroke-width="26"/>
+    <circle class="ring r4" r="220" stroke-width="26"/>
+    <circle class="ring r5" r="270" stroke-width="26"/>
+  </g>
+
+  <!-- text -->
+  <text class="kicker" x="64" y="104">A 3D FLAVOR EXPERIENCE · FAN CONCEPT</text>
+  <text class="title" x="60" y="182">CRUNCH LAB</text>
+  <text class="sub" x="64" y="226">Scroll-driven Lay's showcase built with</text>
+  <text class="sub" x="64" y="254">Next.js · Three.js · GSAP · Lenis</text>
+  <g class="pill">
+    <rect x="64" y="284" width="196" height="40" rx="20" fill="#ffffff"/>
+    <circle cx="86" cy="304" r="5" fill="#e3243a"/>
+    <text x="100" y="310" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="700" fill="#151515">LIVE DEMO  →</text>
+  </g>
+
+  <!-- floating chips -->
+  <!-- position lives on the wrapper; the animation transforms the inner chip -->
+  <g transform="translate(690 90)"><g class="chip ch1"><use href="#c"/></g></g>
+  <g transform="translate(1110 110) scale(.8)"><g class="chip ch2"><use href="#c"/></g></g>
+  <g transform="translate(735 300) scale(1.1)"><g class="chip ch3"><use href="#c"/></g></g>
+  <g transform="translate(1080 300) scale(.9)"><g class="chip ch4"><use href="#c"/></g></g>
+  <g transform="translate(800 40) scale(.6)"><g class="chip ch5"><use href="#c"/></g></g>
+  <g transform="translate(1150 220) scale(.7)"><g class="chip ch6"><use href="#c"/></g></g>
+
+  <!-- shadow -->
+  <ellipse class="shadowPulse" cx="905" cy="350" rx="95" ry="12" fill="url(#shadow)"/>
+
+  <!-- spinning bag -->
+  <g class="float">
+    <g transform="translate(905 196)">
+      <g class="spin">
+        <!-- back face -->
+        <!-- the back is seen through scaleX(-1), so it is pre-mirrored to read correctly -->
+        <g class="back"><g transform="scale(-1 1)">
+          <path d="M-88 -128 L88 -128 L96 128 L-96 128 Z" fill="url(#bagBack)"/>
+          <text x="0" y="-8" text-anchor="middle" font-family="'Courier New', monospace" font-size="13" font-weight="700" fill="#ffd6da" letter-spacing="2">NINE FLAVORS</text>
+          <text x="0" y="14" text-anchor="middle" font-family="'Courier New', monospace" font-size="13" font-weight="700" fill="#ffd6da" letter-spacing="2">ZERO SOGGY</text>
+          <rect x="-60" y="40" width="120" height="2" fill="#ffd6da" opacity=".5"/>
+          <text x="0" y="66" text-anchor="middle" font-family="'Courier New', monospace" font-size="10" fill="#ffd6da" opacity=".8">NET WT 7.75 OZ</text>
+        </g></g>
+        <!-- front face -->
+        <g class="front">
+          <path d="M-88 -128 L88 -128 L96 128 L-96 128 Z" fill="url(#bagFront)"/>
+          <circle cx="0" cy="-22" r="62" fill="url(#sun)"/>
+          <path d="M-74 -40 L74 -46 L70 -6 L-70 0 Z" fill="#d71921" stroke="#fff" stroke-width="3"/>
+          <text x="0" y="-12" text-anchor="middle" font-family="'Brush Script MT', 'Segoe Script', cursive" font-size="34" font-weight="700" fill="#fff">Crunch</text>
+          <rect x="-60" y="52" width="120" height="26" rx="6" fill="#fff6ea"/>
+          <text x="0" y="70" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" font-weight="800" fill="#b3101f">FLAMIN' HOT</text>
+          <use href="#c" transform="translate(-34 104) scale(.9)"/>
+          <use href="#c" transform="translate(6 108) scale(1.1)"/>
+          <use href="#c" transform="translate(44 100) scale(.8)"/>
+          <g transform="skewX(-12)"><rect class="shine" x="-30" y="-128" width="26" height="256" fill="#fff"/></g>
+        </g>
+        <!-- crimped seals -->
+        <path d="M-92 -140 L92 -140 L88 -128 L-88 -128 Z" fill="#8f0c18"/>
+        <path d="M-96 128 L96 128 L100 140 L-100 140 Z" fill="#8f0c18"/>
+        <g stroke="#5d0610" stroke-width="2" opacity=".6">
+          <path d="M-80 -140 V-128 M-60 -140 V-128 M-40 -140 V-128 M-20 -140 V-128 M0 -140 V-128 M20 -140 V-128 M40 -140 V-128 M60 -140 V-128 M80 -140 V-128"/>
+          <path d="M-80 128 V140 M-60 128 V140 M-40 128 V140 M-20 128 V140 M0 128 V140 M20 128 V140 M40 128 V140 M60 128 V140 M80 128 V140"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>

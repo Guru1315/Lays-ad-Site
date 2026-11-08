@@ -74,17 +74,6 @@ All taken from the live deployment at 1600 × 900.
 
 ---
 
-## 💬 Prompts
-
-This site was built with Claude Code from four prompts. They're listed in full in **[PROMPTS.md](PROMPTS.md)**, with notes on what each one produced.
-
-```text
-1. /clone-website https://github.com/alagappan567/lays-crunch-experience
-2. i not have live site so build from that repos information and with those files
-3. Yes, check it
-4. deploy this on vercel and commit and push on https://github.com/Guru1315/Lays-ad-Site …
-```
-
 ## 🛠️ How it works
 
 - **The bags are generated, not photographed.** Pack art is drawn on canvas in the browser and wrapped on pillow-shaped meshes with crimped seals.
@@ -94,10 +83,5 @@ This site was built with Claude Code from four prompts. They're listed in full i
 - **Tested in a real browser.** 17 automated interaction checks pass on the live site at desktop and phone width.
 
 This repo holds the prompts, screenshots and recordings only. The site's source code isn't included.
-
-## 🙏 Credits
-
-- Concept, sections and pseudocode come from **[alagappan567/lays-crunch-experience](https://github.com/alagappan567/lays-crunch-experience)**. This is an independent rebuild made from that repo's public docs and screenshots.
-- Built with [Claude Code](https://claude.com/claude-code).
 
 > **Fan concept.** This site is not affiliated with Lay's or PepsiCo. The Lay's name, logo and pack designs belong to their owners. The store and sign-up are demos: nothing is sold and no emails are sent.

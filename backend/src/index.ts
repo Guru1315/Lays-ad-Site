@@ -1,8 +1,12 @@
 import { ConfigError, encrypt, importKeys, KEY_VERSION, lookupHash } from "./crypto";
 import type { Env } from "./env";
 import { corsHeaders, error, json, parseAllowedOrigins, readJson } from "./http";
-import { insertOrder, insertSignup, listActiveFlavors, priceBox } from "./repo";
+import { hitRateLimit, insertOrder, insertSignup, listActiveFlavors, priceBox } from "./repo";
 import { fieldErrors, MAX_BODY_BYTES, orderSchema, signupSchema } from "./validation";
+
+/** Writes allowed per client IP, per endpoint, per window. */
+const RATE_LIMIT_PER_WINDOW = 5;
+const RATE_WINDOW_SECONDS = 60;
 
 type Ctx = { request: Request; env: Env; cors: Record<string, string> };
 type Handler = (ctx: Ctx) => Promise<Response>;
@@ -44,14 +48,24 @@ export default {
         return error(415, "unsupported_media_type", "Send JSON", cors);
       }
 
-      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-      const { success } = await env.WRITE_LIMITER.limit({ key: `${url.pathname}:${ip}` });
-      if (!success) {
-        return error(429, "rate_limited", "Too many requests. Try again in a minute.", { ...cors, "Retry-After": "60" });
-      }
     }
 
     try {
+      if (route.method === "POST") {
+        const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+        const tooMany = () =>
+          error(429, "rate_limited", "Too many requests. Try again in a minute.", { ...cors, "Retry-After": "60" });
+
+        // Layer 1: Cloudflare's binding. Fast and free, but approximate and per-location.
+        const { success } = await env.WRITE_LIMITER.limit({ key: `${url.pathname}:${ip}` });
+        if (!success) return tooMany();
+
+        // Layer 2: exact count in D1, keyed by an HMAC of route + IP so raw IPs are never stored.
+        const keys = await importKeys(env.EMAIL_ENC_KEY, env.EMAIL_HASH_KEY);
+        const bucket = await lookupHash(keys, `rl:${url.pathname}:${ip}`);
+        if ((await hitRateLimit(env.DB, bucket, RATE_WINDOW_SECONDS)) > RATE_LIMIT_PER_WINDOW) return tooMany();
+      }
+
       return await route.handler({ request, env, cors });
     } catch (err) {
       // Log the detail server-side only; the client gets a generic message.

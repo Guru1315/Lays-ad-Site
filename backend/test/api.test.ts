@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { decrypt, importKeys, lookupHash } from "../src/crypto";
-import { priceBox } from "../src/repo";
+import { hitRateLimit, priceBox } from "../src/repo";
 
 const SITE = "https://guru-lays-site.vercel.app";
 let ipCounter = 0;
@@ -183,6 +183,19 @@ describe("rate limiting", () => {
     }
     expect(statuses.slice(0, 5).every((s) => s === 201)).toBe(true);
     expect(statuses.at(-1)).toBe(429);
+  });
+
+  it("the D1 counter is exact per window and never stores the raw IP", async () => {
+    const t = Date.UTC(2030, 0, 1, 0, 0, 5);
+    const hits: number[] = [];
+    for (let i = 0; i < 6; i++) hits.push(await hitRateLimit(env.DB, "bucket-a", 60, t));
+    expect(hits).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(await hitRateLimit(env.DB, "bucket-a", 60, t + 60_000)).toBe(1); // new window
+    expect(await hitRateLimit(env.DB, "bucket-b", 60, t)).toBe(1); // separate client
+
+    await post("/api/signups", { email: "ipcheck@example.com", consent: true }, { ip: "192.0.2.55" });
+    const dump = await env.DB.prepare("SELECT bucket FROM rate_limits").all();
+    expect(JSON.stringify(dump.results)).not.toContain("192.0.2.55");
   });
 });
 

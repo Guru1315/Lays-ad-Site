@@ -1,8 +1,9 @@
 /**
  * Data access. Every statement is a fixed SQL string with `?` placeholders and values passed
- * through `.bind()`, so user input is never concatenated into SQL. The Worker only runs
- * SELECT and INSERT here: no UPDATE/DELETE of customer data and no schema changes (DDL lives in
- * migrations/, applied by the owner with wrangler).
+ * through `.bind()`, so user input is never concatenated into SQL. Customer data (signups,
+ * orders) is only ever SELECTed or INSERTed: no UPDATE/DELETE and no schema changes (DDL lives in
+ * migrations/, applied by the owner with wrangler). The one exception is the rate_limits
+ * bookkeeping table, which holds counters, not customer data.
  */
 
 export type Flavor = { id: string; name: string; priceCents: number };
@@ -16,7 +17,25 @@ const SQL = {
     "VALUES (?, ?, ?, ?, ?, 1) ON CONFLICT(email_hash) DO NOTHING",
   insertOrder: "INSERT INTO orders (id, subtotal_cents, discount_cents, total_cents) VALUES (?, ?, ?, ?)",
   insertOrderItem: "INSERT INTO order_items (order_id, slot, flavor_id, unit_price_cents) VALUES (?, ?, ?, ?)",
+  hitRateLimit:
+    "INSERT INTO rate_limits (bucket, window_start, hits) VALUES (?, ?, 1) " +
+    "ON CONFLICT(bucket, window_start) DO UPDATE SET hits = hits + 1 RETURNING hits",
+  pruneRateLimits: "DELETE FROM rate_limits WHERE window_start < ?",
 } as const;
+
+/**
+ * Counts one write for `bucket` in the current fixed window and returns the new total.
+ * D1 has a single primary, so this count is exact (unlike the per-location binding).
+ * The only UPDATE/DELETE the Worker runs, and only on this bookkeeping table.
+ */
+export async function hitRateLimit(db: D1Database, bucket: string, windowSeconds: number, nowMs = Date.now()): Promise<number> {
+  const windowStart = Math.floor(nowMs / 1000 / windowSeconds) * windowSeconds;
+  const row = await db.prepare(SQL.hitRateLimit).bind(bucket, windowStart).first<{ hits: number }>();
+  if (Math.random() < 0.02) {
+    await db.prepare(SQL.pruneRateLimits).bind(windowStart - 3600).run();
+  }
+  return row?.hits ?? 1;
+}
 
 export async function listActiveFlavors(db: D1Database): Promise<Flavor[]> {
   const { results } = await db

@@ -82,6 +82,6 @@ All taken from the live deployment at 1600 × 900.
 - **The page re-themes per flavor.** Each flavor sets CSS variables (color, deep, glow, ink), and the background rings sweep to the new colors from the center outward.
 - **Tested in a real browser.** 17 automated interaction checks pass on the live site at desktop and phone width.
 
-This repo holds the prompts, screenshots and recordings only. The site's source code isn't included.
+This repo holds the prompts, screenshots and recordings, plus the site's backend in [`backend/`](backend/README.md): a Cloudflare Worker with a D1 database for Join sign-ups and Build-a-Box orders, including its security review and deploy steps. The frontend source code isn't included.
 
 > **Fan concept.** This site is not affiliated with Lay's or PepsiCo. The Lay's name, logo and pack designs belong to their owners. The store and sign-up are demos: nothing is sold and no emails are sent.

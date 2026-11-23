@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "crunch-lab-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-11-01",
+  "workers_dev": true,
+  "observability": { "enabled": true },
+
+  // Only the site's own origin may call the write endpoints. Add preview domains comma-separated.
+  "vars": {
+    "ALLOWED_ORIGINS": "https://guru-lays-site.vercel.app"
+  },
+
+  // The Worker reaches D1 through this binding: no connection string or password exists to leak.
+  // Replace database_id with the id printed by `npx wrangler d1 create crunch-lab`.
+  // (A database id is an identifier, not a secret.)
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "crunch-lab",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  // 5 writes per minute per IP per endpoint.
+  "ratelimits": [
+    {
+      "name": "WRITE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 5, "period": 60 }
+    }
+  ]
+
+  // Secrets are NOT set here. Set them with:
+  //   npx wrangler secret put EMAIL_ENC_KEY
+  //   npx wrangler secret put EMAIL_HASH_KEY
+  // For local dev, put them in .dev.vars (git-ignored). See .dev.vars.example.
+}

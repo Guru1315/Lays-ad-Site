@@ -1,0 +1,4 @@
+# Copy to .dev.vars for local development (git-ignored). Generate real values with: npm run keys
+# Never reuse the local keys in production: set production secrets with `npx wrangler secret put`.
+EMAIL_ENC_KEY=
+EMAIL_HASH_KEY=

@@ -6,9 +6,13 @@
   "workers_dev": true,
   "observability": { "enabled": true },
 
-  // Only the site's own origin may call the write endpoints. Add preview domains comma-separated.
+  // ALLOWED_ORIGINS: only the site's own origin may call the write endpoints.
+  // RP_*: passkeys are bound to the site's host name, so they only work on that site.
   "vars": {
-    "ALLOWED_ORIGINS": "https://guru-lays-site.vercel.app"
+    "ALLOWED_ORIGINS": "https://guru-lays-site.vercel.app",
+    "RP_ID": "guru-lays-site.vercel.app",
+    "RP_NAME": "Crunch Lab",
+    "RP_ORIGINS": "https://guru-lays-site.vercel.app"
   },
 
   // The Worker reaches D1 through this binding: no connection string or password exists to leak.
@@ -35,5 +39,6 @@
   // Secrets are NOT set here. Set them with:
   //   npx wrangler secret put EMAIL_ENC_KEY
   //   npx wrangler secret put EMAIL_HASH_KEY
+  //   npx wrangler secret put PROXY_SECRET   (same value as the site's API_PROXY_SECRET on Vercel)
   // For local dev, put them in .dev.vars (git-ignored). See .dev.vars.example.
 }

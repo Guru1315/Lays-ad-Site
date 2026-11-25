@@ -1,9 +1,11 @@
 /**
  * Data access. Every statement is a fixed SQL string with `?` placeholders and values passed
- * through `.bind()`, so user input is never concatenated into SQL. Customer data (signups,
- * orders) is only ever SELECTed or INSERTed: no UPDATE/DELETE and no schema changes (DDL lives in
- * migrations/, applied by the owner with wrangler). The one exception is the rate_limits
- * bookkeeping table, which holds counters, not customer data.
+ * through `.bind()`, so user input is never concatenated into SQL. The Worker never runs DDL
+ * (schema lives in migrations/, applied by the owner with wrangler). Writes it does make:
+ * - INSERT sign-ups, orders, users, passkeys, sessions, challenges
+ * - UPDATE only: an order's owner/status (scoped by user_id), a passkey's counter, a user's
+ *   display name, and the rate_limits counters
+ * - DELETE only: used challenges, a user's own session on sign-out, expired rows
  */
 
 export type Flavor = { id: string; name: string; priceCents: number };
@@ -15,7 +17,8 @@ const SQL = {
   insertSignup:
     "INSERT INTO signups (id, email_hash, email_ciphertext, email_iv, key_version, consent) " +
     "VALUES (?, ?, ?, ?, ?, 1) ON CONFLICT(email_hash) DO NOTHING",
-  insertOrder: "INSERT INTO orders (id, subtotal_cents, discount_cents, total_cents) VALUES (?, ?, ?, ?)",
+  insertOrder: "INSERT INTO orders (id, user_id, subtotal_cents, discount_cents, total_cents) VALUES (?, ?, ?, ?, ?)",
+  insertOrderEvent: "INSERT INTO order_events (order_id, status) VALUES (?, 'placed')",
   insertOrderItem: "INSERT INTO order_items (order_id, slot, flavor_id, unit_price_cents) VALUES (?, ?, ?, ?)",
   hitRateLimit:
     "INSERT INTO rate_limits (bucket, window_start, hits) VALUES (?, ?, 1) " +
@@ -76,11 +79,16 @@ export function priceBox(flavorIds: string[], catalog: Flavor[]): Omit<PricedOrd
   return { items, subtotalCents, discountCents, totalCents: subtotalCents - discountCents };
 }
 
-/** Writes the order and its items in one atomic batch (all rows or none). */
-export async function insertOrder(db: D1Database, order: Omit<PricedOrder, "id">): Promise<PricedOrder> {
+/** Writes the order, its items and its first tracking event in one atomic batch. */
+export async function insertOrder(
+  db: D1Database,
+  order: Omit<PricedOrder, "id">,
+  userId: string | null = null,
+): Promise<PricedOrder> {
   const id = crypto.randomUUID();
   await db.batch([
-    db.prepare(SQL.insertOrder).bind(id, order.subtotalCents, order.discountCents, order.totalCents),
+    db.prepare(SQL.insertOrder).bind(id, userId, order.subtotalCents, order.discountCents, order.totalCents),
+    db.prepare(SQL.insertOrderEvent).bind(id),
     ...order.items.map((item, slot) =>
       db.prepare(SQL.insertOrderItem).bind(id, slot, item.flavorId, item.unitPriceCents),
     ),

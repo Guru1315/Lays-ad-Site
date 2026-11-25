@@ -1,23 +1,40 @@
 # Crunch Lab API (Cloudflare Workers + D1)
 
-The backend for [guru-lays-site.vercel.app](https://guru-lays-site.vercel.app), live at `https://crunch-lab-api.gurumurugan291.workers.dev`. It saves two things:
+The backend for [guru-lays-site.vercel.app](https://guru-lays-site.vercel.app), live at `https://crunch-lab-api.gurumurugan291.workers.dev`. It handles Join sign-ups, Build-a-Box orders, and profiles with passkey sign-in and order tracking.
 
-| Endpoint | Method | What it does |
-|---|---|---|
-| `/api/signups` | POST | "First dibs" email sign-up (Join section) |
-| `/api/orders` | POST | Build-a-Box 3-pack order (demo: nothing is charged) |
-| `/api/flavors` | GET | Public flavor catalog with server-side prices |
-| `/api/health` | GET | Health check |
+| Endpoint | Method | Sign-in | What it does |
+|---|---|---|---|
+| `/api/health` | GET | | Health check |
+| `/api/flavors` | GET | | Public flavor catalog with server-side prices |
+| `/api/signups` | POST | | "First dibs" email sign-up (Join section) |
+| `/api/orders` | POST | optional | Build-a-Box 3-pack order (demo: nothing is charged). Linked to the buyer when signed in |
+| `/api/auth/register/options` · `/verify` | POST | | Create a profile with a passkey |
+| `/api/auth/login/options` · `/verify` | POST | | Sign in with a passkey |
+| `/api/auth/logout` | POST | | End the session (server-side) |
+| `/api/me` | GET | | The signed-in user, or `{ "user": null }` |
+| `/api/me` | POST | required | Change display name |
+| `/api/me/delete` | POST | required | Delete the profile, its passkeys and sessions |
+| `/api/me/orders` | GET | required | Your orders, with items and a status timeline |
+| `/api/me/orders/claim` | POST | required | Attach orders placed on this device before signing in |
+| `/api/me/orders/:id/cancel` | POST | required | Cancel your own order while it's still "placed" |
 
-There is no public endpoint that reads sign-ups or orders back. Only the owner can see them, from the Cloudflare dashboard or with `wrangler d1 execute`.
+Nobody can read another person's data: every profile query is scoped by the user id from the session, never from the request.
 
 ```
-frontend (Vercel, Next.js) ──HTTPS + Origin check──▶ Worker (src/index.ts)
-                                                     ├─ validation.ts   Zod schemas
-                                                     ├─ crypto.ts       AES-GCM + HMAC for emails
-                                                     ├─ repo.ts         parameterized SQL only
-                                                     └─ env.DB  ──binding──▶  D1 (SQLite)
+browser ──▶ guru-lays-site.vercel.app/api/*  (src/proxy.ts on Vercel: adds the visitor IP + shared secret)
+                 │
+                 ▼  HTTPS
+           Worker (src/index.ts)
+             ├─ validation.ts   Zod schemas
+             ├─ passkeys.ts     WebAuthn via @simplewebauthn/server
+             ├─ sessions.ts     HttpOnly cookie, SHA-256-hashed tokens
+             ├─ profile.ts      user-scoped queries
+             ├─ crypto.ts       AES-GCM + HMAC for emails
+             ├─ repo.ts         parameterized SQL only
+             └─ env.DB ──binding──▶ D1 (SQLite)
 ```
+
+The site calls the API on its own domain through a Next.js proxy, so the session is a normal first-party cookie. Browsers block cross-site cookies, so a cookie set directly by `workers.dev` wouldn't work.
 
 ## Setup
 
@@ -31,16 +48,16 @@ npx wrangler login
 # 1. Create the database, then paste the printed database_id into wrangler.jsonc
 npx wrangler d1 create crunch-lab
 
-# 2. Local secrets (git-ignored)
-npm run keys            # prints two fresh keys
-cp .dev.vars.example .dev.vars   # paste the keys in
+# 2. Local secrets and settings (git-ignored)
+npm run keys                     # prints three fresh keys
+cp .dev.vars.example .dev.vars   # paste them in; RP_ID=localhost for local passkeys
 
 # 3. Local database and dev server
 npm run db:migrate:local
-npm run dev             # http://localhost:8787
+npm run dev                      # http://localhost:8787
 ```
 
-For local frontend work, add `http://localhost:3000` to `ALLOWED_ORIGINS` (in `.dev.vars` or in a local `wrangler.jsonc` edit you don't commit).
+To run the site against it locally, start the site with `API_ORIGIN=http://localhost:8787` and `API_PROXY_SECRET=<the PROXY_SECRET from .dev.vars>`, and list the site's local origin in both `ALLOWED_ORIGINS` and `RP_ORIGINS`.
 
 ## Deploy
 
@@ -49,50 +66,65 @@ npm run check                     # typecheck + tests + npm audit
 npm run keys                      # generate NEW keys for production (don't reuse local ones)
 npx wrangler secret put EMAIL_ENC_KEY
 npx wrangler secret put EMAIL_HASH_KEY
+npx wrangler secret put PROXY_SECRET
 npm run db:migrate:remote
 npm run deploy
 ```
 
-Then, in Vercel, set `NEXT_PUBLIC_API_URL` to the Worker URL and copy [`client/crunchLabApi.ts`](client/crunchLabApi.ts) into the site (`src/lib/`). Call `joinList()` from the Join form and `placeBoxOrder()` from checkout, and add a visually hidden `website` input to the Join form as a honeypot.
+In Vercel (the site), set `API_ORIGIN` to the Worker URL and `API_PROXY_SECRET` to the same value as `PROXY_SECRET`, marked **Sensitive**. Both are server-only: neither has a `NEXT_PUBLIC_` prefix.
 
-**Back up your keys.** Store `EMAIL_ENC_KEY` and `EMAIL_HASH_KEY` in a password manager. Without `EMAIL_ENC_KEY`, stored emails can't be decrypted.
+**Back up your keys.** Store `EMAIL_ENC_KEY` and `EMAIL_HASH_KEY` in a password manager. Without `EMAIL_ENC_KEY`, stored emails can't be decrypted. `PROXY_SECRET` can be rotated any time: set a new value in both places.
+
+## Updating an order's status (owner only)
+
+```bash
+npm run order:status -- <order-id> packed      # or shipped, delivered, cancelled; add --local for the dev DB
+```
+
+The buyer sees the change on their profile's tracking timeline. The script checks that the id is a UUID and the status is one of the allowed values.
 
 ## Security review
 
 | Requirement | How it's handled here |
 |---|---|
-| **Secrets in env vars, never in code** | The only secrets are `EMAIL_ENC_KEY` and `EMAIL_HASH_KEY`, set with `wrangler secret put` (prod) or `.dev.vars` (local, git-ignored). D1 has **no connection string or DB password**: the Worker reaches it through the `DB` binding, so there is nothing to leak. The keys in `vitest.config.ts` are test-only values. |
-| **Row Level Security** | D1 is SQLite and has **no RLS**. The same protection comes from the Worker being the only way in: no endpoint lists or reads sign-ups or orders, writes are insert-only, and order ids are random UUIDs. D1 isn't reachable from the internet except through the Cloudflare API with your account token. |
-| **SQL injection** | Every query in [`src/repo.ts`](src/repo.ts) is a constant string with `?` placeholders and `.bind()` values. No string-built SQL. Tests post `DROP TABLE` and `' OR 1=1 --` payloads and check nothing changes. |
-| **Least privilege** | D1 has no database roles, so privilege is limited at each layer. The Worker only runs `SELECT` and `INSERT` on customer data (no `UPDATE`/`DELETE`/DDL); its only `UPDATE`/`DELETE` is on the `rate_limits` counter table. Schema changes live in `migrations/` and are applied by you with wrangler. For CI deploys, create a Cloudflare API token scoped to *this account* with only **Workers Scripts: Edit** and **D1: Edit**, instead of using a global key. |
-| **Passwords** | The site has no user accounts or logins, so no passwords are stored. If you add accounts later, use an auth service (e.g. Cloudflare Access, Clerk, Auth.js) that hashes with Argon2/bcrypt. Never store passwords yourself. |
-| **PII protection** | Emails are encrypted with AES-256-GCM (random IV per row) before storage. De-duplication uses a keyed HMAC-SHA-256 hash, so a leaked DB copy reveals no addresses. IP addresses are used only as rate-limit keys and are never stored. |
-| **Backend validation** | Zod schemas in [`src/validation.ts`](src/validation.ts) check type, length and format. They're `.strict()`, so unknown fields (like `isAdmin` or a client `totalCents`) are rejected. Bodies are capped at 2 KB. Prices come from the `flavors` table, never from the browser. Table `CHECK` constraints and foreign keys back this up in the database. |
-| **XSS** | The API returns JSON only, with `X-Content-Type-Options: nosniff` and `Content-Security-Policy: default-src 'none'`. Error messages never echo input back. In the frontend, render values as text (React does this by default) and never use `dangerouslySetInnerHTML` with API data. |
-| **HTTPS / TLS** | Vercel and `*.workers.dev` serve HTTPS only, and the API sends HSTS. The Worker-to-D1 link runs inside Cloudflare's network and is encrypted automatically. There's no client-side DB connection to configure. |
-| **Rate limiting** | Two layers, 5 writes/minute per IP per endpoint, returning `429` with `Retry-After`: (1) the Workers Rate Limiting binding, which is fast but approximate and per data center, and (2) an exact counter in the D1 `rate_limits` table, keyed by an HMAC of route + IP (raw IPs are never stored; rows are pruned after an hour). Signups also have a honeypot field. For extra protection, add [Turnstile](https://developers.cloudflare.com/turnstile/) to the Join form. |
-| **CORS / CSRF** | Exact-match origin allowlist (`ALLOWED_ORIGINS`). POSTs with a missing or foreign `Origin` are rejected with `403`, and non-JSON bodies with `415`, so cross-site HTML forms can't post. No cookies are used, so there's no session to hijack. |
-| **Enumeration** | Signing up with an email that's already on the list returns the same response as a new sign-up. |
-| **Backups** | D1 **Time Travel** is always on: restore to any minute in the last 30 days with `npx wrangler d1 time-travel restore crunch-lab --timestamp=<ISO time>`. For longer retention, run `npx wrangler d1 export crunch-lab --remote --output=backup.sql` on a schedule and store the file privately (it contains only encrypted emails). |
-| **Dependencies** | `npm run check` includes `npm audit`. Dependabot (`.github/dependabot.yml`) opens weekly update PRs, and CI runs the checks on every push. |
+| **Secrets in env vars, never in code** | Secrets are `EMAIL_ENC_KEY`, `EMAIL_HASH_KEY` and `PROXY_SECRET`, set with `wrangler secret put` (prod) or `.dev.vars` (local, git-ignored). D1 has **no connection string or DB password**: the Worker reaches it through the `DB` binding, so there is nothing to leak. Values in `vitest.config.ts` are test-only. |
+| **Authentication** | **Passkeys** (WebAuthn). There are no passwords to store, leak or phish. The server keeps only each passkey's public key and verifies a signature over a random, single-use challenge that expires after 5 minutes. Passkeys are bound to `guru-lays-site.vercel.app`, so a look-alike site can't use them (tested). Sign-in uses one generic error for "unknown passkey" and "bad signature". |
+| **Sessions** | A random 256-bit token in a `__Host-` cookie with `HttpOnly; Secure; SameSite=Lax; Path=/`, so page JavaScript can't read it and other sites can't send it on POSTs. The database stores only its SHA-256 hash. Sessions last 30 days and sign-out deletes them on the server. |
+| **Authorization (RLS equivalent)** | D1 is SQLite and has **no RLS**, so the Worker enforces it. Every profile query includes `WHERE user_id = ?` with the id from the session, never from the request body. Tests check that one user can't see or cancel another's order. There's no endpoint that lists sign-ups or other people's orders. |
+| **SQL injection** | Every query is a constant string with `?` placeholders and `.bind()` values. The only dynamic part is the number of `?` in the claim query. Tests send `DROP TABLE`, `' OR 1=1 --` and malformed cookies and ids, and check nothing changes. |
+| **Least privilege** | D1 has no database roles, so privilege is limited at each layer. The Worker never runs DDL. Its only `UPDATE`s are scoped by `user_id` (order status, owner, display name), plus passkey counters and rate-limit counters. Its `DELETE`s cover used challenges, your own session or profile, and expired rows. Schema changes live in `migrations/` and are applied by you. For CI deploys, use a Cloudflare API token limited to **Workers Scripts: Edit** and **D1: Edit**. |
+| **PII protection** | Emails are encrypted with AES-256-GCM before storage, with an HMAC lookup hash for de-duplication. Profiles hold only an optional display name. IP addresses are used only as rate-limit keys (HMAC-hashed) and are never stored. |
+| **Backend validation** | Zod schemas in [`src/validation.ts`](src/validation.ts) check type, length and format, and reject unknown fields. Display names are 1–40 printable characters, with control and invisible characters rejected. Bodies are capped at 2 KB (16 KB for passkey payloads). Prices come from the `flavors` table. Table `CHECK` constraints and foreign keys back this up. |
+| **XSS** | JSON only, with `nosniff` and `Content-Security-Policy: default-src 'none'`. Errors never echo input. The site renders names and orders as React text, never as HTML. |
+| **HTTPS / TLS** | Vercel and `*.workers.dev` serve HTTPS only, and the API sends HSTS. The Worker-to-D1 link is internal to Cloudflare and encrypted. |
+| **Rate limiting** | Two layers, 5 writes/minute per IP per endpoint: the Workers Rate Limiting binding (fast, approximate) and an exact D1 counter. Behind the proxy, the Worker uses the real visitor IP only when the request carries `PROXY_SECRET`, checked in constant time. Otherwise it uses Cloudflare's connecting IP, so a spoofed `X-Client-IP` is ignored (tested). |
+| **CORS / CSRF** | Exact-match origin allowlist. POSTs with a missing or foreign `Origin` get `403`, and non-JSON bodies get `415`. The session cookie is `SameSite=Lax`, so cross-site requests don't carry it. A CSRF test checks that a profile change from another site is refused even with a valid cookie. |
+| **Enumeration** | Re-signing up with a listed email returns the same answer as a new one, and passkey sign-in errors don't reveal whether a passkey exists. |
+| **Backups** | D1 **Time Travel** is always on: restore to any minute in the last 30 days with `npx wrangler d1 time-travel restore crunch-lab --timestamp=<ISO time>`. For longer retention, run `npx wrangler d1 export crunch-lab --remote --output=backup.sql` on a schedule and store it privately. |
+| **Dependencies** | `npm run check` includes `npm audit`. Dependabot opens weekly update PRs, and CI runs the checks on every push. |
 | **Errors** | Internal errors are logged server-side with a request id. Clients only see a generic message. |
 
 ## Data model
 
 ```
+users (id PK, display_name, created_at)
+  ├─ passkeys (credential_id PK, user_id FK CASCADE, public_key, counter, transports, device_type, backed_up)
+  ├─ sessions (token_hash PK, user_id FK CASCADE, created_at, expires_at)
+  └─ orders (id PK, user_id FK SET NULL, subtotal/discount/total_cents, status, created_at)
+       ├─ order_items (order_id FK CASCADE, slot 0–2, flavor_id FK ─▶ flavors RESTRICT, unit_price_cents)
+       └─ order_events (order_id FK CASCADE, status, at)   ← tracking timeline
 flavors (id PK, name, price_cents, active)
-   ▲
-   │ RESTRICT
-order_items (order_id FK ─▶ orders.id ON DELETE CASCADE, slot 0–2, flavor_id FK, unit_price_cents)
-orders (id PK, subtotal_cents, discount_cents, total_cents = subtotal − discount, status, created_at)
 signups (id PK, email_hash UNIQUE, email_ciphertext, email_iv, key_version, consent = 1, created_at)
-rate_limits (bucket = HMAC(route + IP), window_start, hits) PK (bucket, window_start)
+auth_challenges (id PK, challenge, purpose, user_handle, display_name, expires_at)   ← single-use, 5 min
+rate_limits (bucket = HMAC(route + IP), window_start, hits)
 ```
+
+Order statuses: `placed → packed → shipped → delivered`, or `cancelled`.
 
 ## Reading your data (owner only)
 
 ```bash
-npx wrangler d1 execute crunch-lab --remote --command "SELECT id, total_cents, created_at FROM orders ORDER BY created_at DESC LIMIT 20"
+npx wrangler d1 execute crunch-lab --remote --command "SELECT id, status, total_cents, created_at FROM orders ORDER BY created_at DESC LIMIT 20"
 ```
 
 Emails are encrypted in the DB. To export them for a mailing, write a small one-off script that runs `decrypt()` from `src/crypto.ts` with the production key, and keep the output off GitHub.
@@ -103,8 +135,16 @@ Emails are encrypted in the DB. To export them for a mailing, write a small one-
 npm test
 ```
 
-21 tests run against a real local D1 and rate limiter via `@cloudflare/vitest-plugin`. They cover origin and CORS checks, content type, body size, Zod validation, SQL-injection payloads, that emails are encrypted at rest, duplicate-email handling, the honeypot, server-side pricing, rate limiting, and failing closed on bad keys.
+39 tests run against a real local D1 and rate limiter via `@cloudflare/vitest-plugin`. A software authenticator in [`test/softAuthenticator.ts`](test/softAuthenticator.ts) produces genuine signed passkey responses, so the real verification code runs. Coverage includes:
+- passkey sign-up and sign-in
+- replayed challenges and phishing origins
+- cookie flags and hashed sessions
+- sign-out, CSRF, and one user not seeing another's orders
+- cancelling and claiming orders
+- spoofed proxy headers
+- origin and CORS checks, validation, SQL-injection payloads
+- emails encrypted at rest, server-side pricing, rate limiting
 
 ## Privacy note
 
-This is a fan concept and isn't affiliated with Lay's or PepsiCo. Once the Join form stores real emails, say so next to the form, link a short privacy note (what you collect, why, how to be removed), and only email people who ticked consent.
+This is a fan concept and isn't affiliated with Lay's or PepsiCo. The Join form says so and asks for consent. Profiles hold no email, and you can delete yours at any time from the profile panel.

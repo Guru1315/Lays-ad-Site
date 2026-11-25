@@ -15,7 +15,8 @@
     "keys": "node scripts/generate-keys.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "check": "npm run typecheck && npm test && npm audit --audit-level=moderate"
+    "check": "npm run typecheck && npm test && npm audit --audit-level=moderate",
+    "order:status": "node scripts/set-order-status.mjs"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.9.0",
@@ -25,6 +26,7 @@
     "wrangler": "4.166.0"
   },
   "dependencies": {
+    "@simplewebauthn/server": "14.1.0",
     "zod": "4.6.7"
   },
   "allowScripts": {

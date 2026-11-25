@@ -2,3 +2,7 @@
 # Never reuse the local keys in production: set production secrets with `npx wrangler secret put`.
 EMAIL_ENC_KEY=
 EMAIL_HASH_KEY=
+PROXY_SECRET=
+# Local passkeys: the site runs on http://localhost:3000
+RP_ID=localhost
+RP_ORIGINS=http://localhost:3000
